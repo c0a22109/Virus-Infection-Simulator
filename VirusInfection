@@ -1,0 +1,195 @@
+import numpy as np
+import matplotlib.pyplot as plt
+import matplotlib.animation as animation
+from matplotlib import rc, gridspec
+import copy
+
+class Person:
+    def __init__(self, N_PERSON, P_RATE):
+        self.N_PERSON = N_PERSON
+        self.P_RATE = P_RATE
+        self.SPEED_PERSON = SPEED_PERSON
+        self.R_INFECTION = R_INFECTION
+        nega = int(self.P_RATE * self.N_PERSON)
+        self.p1 = [1 for _ in range(nega)] + [0 for _ in range(self.N_PERSON - nega)]# [0]: 3:Recover 2:Death 1:Negative 0:Positive
+        self.p2 = copy.copy(self.p1)
+        self.x1 = [np.random.randint(0, N_FIELD) for _ in range(self.N_PERSON)]  #感染したら止まる
+        self.y1 = [np.random.randint(0, N_FIELD) for _ in range(self.N_PERSON)]
+        self.x2 = [np.random.randint(0, N_FIELD) for _ in range(self.N_PERSON)]   #感染しても動く
+        self.y2 = [np.random.randint(0, N_FIELD) for _ in range(self.N_PERSON)] 
+        self.recover1 = [0 for _ in range(N_PERSON)]  #感染してから経過した時間
+        self.recover2 = [0 for _ in range(N_PERSON)]
+
+    def p_func(self, k, n): #周期境界
+        if k < 0:
+            return k + n
+        elif k > n - 1:
+            return k - n
+        else:
+            return k
+
+    def update_xy(self, xy, n, r=1): #周囲nマスに進む、デフォルトで1
+        rxy = np.random.randint(-r, r)
+        return self.p_func(xy + rxy, n)
+
+    def check_infection(self, x, y, n, mode, r=1): #rは感染力R_INFECTION,周囲nマスに感染者がいたら
+        mawari = [i for i in range(-r, r+1)]
+        for i in mawari:
+            for j in mawari:
+                mw_x = self.p_func(x + i, n)
+                mw_y = self.p_func(y + j, n)
+                for k in range(len(self.p1)):
+                    if mode == 1:
+                        if (self.x1[k] == mw_x) and (self.y1[k] == mw_y):
+                            if self.p1[k] == 0:
+                                return 0
+                    elif mode == 2:
+                        if (self.x2[k] == mw_x) and (self.y2[k] == mw_y):
+                            if self.p2[k] == 0:
+                                return 0
+        return 1   
+
+    def check_infection3(self, x, y, n, mode, r=1): #回復者用check_infection、免疫あり
+        mawari = [i for i in range(-r, r+1)]
+        menneki = 0.5  #免疫の強さ
+        if np.random.random() >= menneki:
+            for i in mawari:
+                for j in mawari:
+                    mw_x = self.p_func(x + i, n)
+                    mw_y = self.p_func(y + j, n)
+                    for k in range(len(self.p1)):
+                        if mode == 1:
+                            if (self.x1[k] == mw_x) and (self.y1[k] == mw_y):
+                                if self.p1[k] == 0:
+                                    return 0
+                        elif mode == 2:
+                            if (self.x2[k] == mw_x) and (self.y2[k] == mw_y):
+                                if self.p2[k] == 0:
+                                    return 0
+        return 3
+    
+    def move_people(self, T_MAX, N_FIELD): #点の状態(色、座標、動くか止まるか)の設定、グラフ材料作成
+        ims = []
+
+        for i in range(T_MAX):
+            im = []
+            in1 = 0  #感染している点の個数,感染したら止まる
+            in2 = 0  #感染している点の個数,感染しても動く
+            colorlst1 = ["b" for _ in range(N_PERSON)]
+            colorlst2 = ["b" for _ in range(N_PERSON)]
+            step_data.append(i+1)
+
+            ##感染したら止まる
+            for j in range(self.N_PERSON):
+                if self.p1[j] == 2 or self.p1[j] == 0:  #感染or死亡
+                    if self.p1[j] == 2: #死亡 
+                        colorlst1[j] = "black"
+                        in1 += 1
+    
+                    elif self.p1[j] == 0: #感染
+                        #in1 += 1
+                        colorlst1[j] = "r"
+                        self.recover1[j] += 1
+                        dnum = np.random.random()
+                        if self.recover1[j] >= T_RECOVER:
+                            self.p1[j] = 3
+                            colorlst1[j] = "g"
+                            self.recover1[j] = 0
+                        if dnum < D_RATE:
+                            self.p1[j] = 2
+                            colorlst1[j] = "black"
+                else:  #動ける状態にある
+                    newx1 = self.update_xy(self.x1[j], N_FIELD, self.SPEED_PERSON)
+                    newy1 = self.update_xy(self.y1[j], N_FIELD, self.SPEED_PERSON)
+                    self.x1[j] = newx1
+                    self.y1[j] = newy1
+                    
+                    if self.p1[j] == 1: #非感染
+                        self.p1[j] = self.check_infection(self.x1[j], self.y1[j], N_FIELD, 1, self.R_INFECTION)
+                            
+                    elif self.p1[j] == 3: #回復
+                        colorlst1[j] = "g"
+                        self.p1[j] = self.check_infection3(self.x1[j], self.y1[j], N_FIELD, 1, self.R_INFECTION) 
+                    
+            ##感染しても動く
+            for j in range(self.N_PERSON):
+                if self.p2[j] == 2:  #死亡      
+                    colorlst2[j] = "black"
+                    in2 += 1
+        
+                else:
+                    if self.p2[j] == 1: #非感染
+                        self.p2[j] = self.check_infection(self.x2[j], self.y2[j], N_FIELD, 2, self.R_INFECTION) 
+                        
+                    elif self.p2[j] == 0: #感染
+                        #in2 += 1
+                        colorlst2[j] = "r"
+                        self.recover2[j] += 1
+                        dnum = np.random.random()
+                        if self.recover2[j] >= T_RECOVER:
+                            self.p2[j] = 3
+                            colorlst2[j] = "g"
+                            self.recover2[j] = 0
+                            continue
+                        if dnum < D_RATE:
+                            self.p2[j] = 2
+                            colorlst2[j] = "black"
+
+                    elif self.p2[j] == 3: #回復
+                        colorlst2[j] = "g"
+                        self.p2[j] = self.check_infection3(self.x2[j], self.y2[j], N_FIELD, 2, self.R_INFECTION) 
+
+                    newx2 = self.update_xy(self.x2[j], N_FIELD, self.SPEED_PERSON)
+                    newy2 = self.update_xy(self.y2[j], N_FIELD, self.SPEED_PERSON)
+                    self.x2[j] = newx2
+                    self.y2[j] = newy2
+
+            in_data[0].append(in1)
+            in_data[1].append(in2)
+            im += [ax[0].scatter(self.x1, self.y1, color=colorlst1, alpha = 0.5, s = 100)]
+            im += [ax[2].scatter(self.x2, self.y2, color=colorlst2, alpha = 0.5, s = 100)]
+            im += ax[1].plot(step_data, in_data[0], color = "black")
+            im += ax[3].plot(step_data, in_data[1], color = "black")
+            ims.append(im)
+        return ims
+
+############## 統一条件 ###############
+N_FIELD = 100     #n*nの二次元フィールド
+N_PERSON = 200    #点の数
+P_RATE = 0.7      #初期状態で点が動いている割合
+T_MAX = 80        #ステップ数
+######################################
+
+############### 変動条件 ################
+SPEED_PERSON = 3  #1ステップあたりの移動距離
+R_INFECTION = 5   #感染半径（セル数）
+T_RECOVER = 10    #感染から回復までの時間
+D_RATE = 0.03     #感染後の死亡割合
+########################################
+
+in_data = [[]for _ in range(2)]   #感染している点の個数リスト 0:左 1:右
+step_data = [] #STEPを保存するリスト
+
+fig = plt.figure(figsize = (10, 7.5))
+gs = gridspec.GridSpec(2, 2, height_ratios = (3, 1))
+ax = [plt.subplot(gs[0, 0]), plt.subplot(gs[1,0]), plt.subplot(gs[0, 1]), plt.subplot(gs[1, 1])]
+ax[0].set_xlim(0, 100)
+ax[1].set_xlim(0, T_MAX)
+ax[2].set_xlim(0, 100)
+ax[3].set_xlim(0, T_MAX)
+ax[0].set_ylim(0, 100)
+ax[2].set_ylim(0, 100)
+ax[1].set_ylim(0, N_PERSON)
+ax[3].set_ylim(0, N_PERSON)
+#ax[1].set_xlabel('infected patients: stop')
+#ax[3].set_xlabel('infected patients: move')
+ax[1].set_xlabel('death toll: stop')
+ax[3].set_xlabel('death toll: move')
+person = Person(N_PERSON, P_RATE)
+ims = person.move_people(T_MAX, N_FIELD)
+plt.tight_layout()
+plt.savefig("死亡者数.png")
+plt.close()
+ani = animation.ArtistAnimation(fig, ims, interval=200, repeat_delay=1000)
+rc('animation', html='jshtml')
+ani
